@@ -64,7 +64,8 @@ class Provider extends Service_Provider {
 	 * @return array<string, \TEC\Common\Site_Health\Info_Section_Abstract>
 	 */
 	public function filter_include_sections( $sections ) {
-		$sections[ Info_Section::get_slug() ] = $this->container->make( Info_Section::class );
+		$sections[ Info_Section::get_slug() ]     = $this->container->make( Info_Section::class );
+		$sections[ Settings_Section::get_slug() ] = $this->container->make( Settings_Section::class );
 
 		return $sections;
 	}

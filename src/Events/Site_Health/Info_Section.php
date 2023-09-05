@@ -11,6 +11,8 @@ namespace TEC\Events\Site_Health;
 
 use TEC\Common\Site_Health\Info_Section_Abstract;
 use TEC\Common\Site_Health\Factory;
+use Tribe\Events\Views\V2\Manager as Manager;
+use Tribe__Template as Template;
 
 /**
  * Class Site_Health
@@ -135,31 +137,19 @@ class Info_Section extends Info_Section_Abstract {
 			)
 		);
 
-		$view_manager     = tribe( \Tribe\Events\Views\V2\Manager::class );
-		$views            = array_flip( array_keys( $view_manager->get_registered_views() ) );
-		$active_views     = array_keys( $view_manager->get_publicly_visible_views() );
-		foreach( $views as $view => $value ) {
-			if (
-				'widget-events-list' === $view
-				|| 'latest-past' === $view
-				|| 'reflector' === $view
-			) {
-				unset( $views[ $view ] );
-				continue;
-			}
-
-			if ( in_array( $view, $active_views ) ) {
-				$views[ $view ] = true;
-			} else {
-				$views[ $view ] = false;
-			}
-		}
+		$view_manager     = tribe( Manager::class );
+		$active_views = array_map(
+			static function( $view ) use ( $view_manager ) {
+				return $view_manager->get_view_label_by_class( $view );
+			},
+			$view_manager->get_publicly_visible_views( true )
+		);
 
 		$this->add_field(
 			Factory::generate_generic_field(
 				'enabled_views',
 				esc_html__( 'Views', 'the-events-calendar' ),
-				$views,
+				array_values( $active_views ),
 				60
 			)
 		);
@@ -210,5 +200,86 @@ class Info_Section extends Info_Section_Abstract {
 				100
 			)
 		);
+
+		$template = new Template();
+		$overrides = array_filter( wp_list_pluck( $template->get_template_override_paths( 'tribe/events' ), 'path' ) );
+
+		$this->add_field(
+			Factory::generate_generic_field(
+				'template_overrides',
+				esc_html__( 'Parent theme template overrides', 'the-events-calendar' ),
+				is_dir( $overrides['parent-theme'] ),
+				110
+			)
+		);
+		$this->add_field(
+			Factory::generate_generic_field(
+				'template_overrides',
+				esc_html__( 'Child theme template overrides', 'the-events-calendar' ),
+				is_dir( $overrides['child-theme'] ),
+				110
+			)
+		);
+
+		$this->add_support_info();
+	}
+
+
+	/**
+	 * Adds support info to Site Health
+	 *
+	 * @since TBD
+	 */
+	public function add_support_info() {
+		$support     = \Tribe__Support::getInstance();
+		$system_info = $support->getSupportStats();
+		// Skip these here for now as they are redundant with the core Site Health data.
+		// Note; these are case-sensitive!
+		$ignore = [
+			'Home URL',
+			'MU Plugins',
+			'Multisite',
+			'Network Plugins',
+			'Permalink Structure',
+			'SAPI',
+			'PHP version',
+			'PHP',
+			'Plugins',
+			'Server',
+			'Settings',
+			'Site Language',
+			'Site URL',
+			'Theme',
+			'tribeEnableViews',
+			'WordPress version',
+			'WP Timezone',
+		];
+
+		foreach( $system_info as $key => $value ) {
+			if ( in_array( $key, $ignore ) ) {
+				continue;
+			}
+
+			if ( $key === 'Week Starts On' ) {
+				$value = date('l', strtotime( "Sunday +{$value} days" ) );
+			}
+
+			if ( tribe_is_truthy( $value ) ) {
+				$value = 'true';
+			} elseif ( tribe_is_falsy( $value ) ) {
+				$value = 'false';
+			} elseif ( $value === '' ) {
+				$value = 'default';
+			}
+
+			$this->add_field(
+				Factory::generate_generic_field(
+					sanitize_title_with_dashes( $key ),
+					esc_html( $key ),
+					$value,
+					500
+				)
+			);
+		}
 	}
 }
